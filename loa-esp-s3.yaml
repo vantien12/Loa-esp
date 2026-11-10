@@ -109,7 +109,7 @@ speaker:
 
   # Trộn 2 luồng: thông báo + nhạc (thông báo phát đè, nhạc tự nhỏ lại)
   - platform: mixer
-    id: mixer_speaker
+    id: mixer_out
     output_speaker: i2s_speaker
     num_channels: 1
     task_stack_in_psram: true
