@@ -1,7 +1,7 @@
 name: Build firmware loa ESP
 
 # Chạy tay: Actions -> "Build firmware loa ESP" -> Run workflow -> chọn chân GPIO -> Run.
-# Đẩy code lên nhánh main: build bản chân mặc định (LRC 11, BCLK 9, DIN 7).
+# Đẩy code lên nhánh main: build bản chân mặc định (LRC 16, BCLK 15, DIN 7).
 # Kết quả: trang nạp firmware ở https://<tên-github>.github.io/<tên-repo>/
 on:
   push:
@@ -12,12 +12,12 @@ on:
       lrclk:
         description: "Chân LRC (WS) của MAX98357"
         type: choice
-        default: GPIO11
+        default: GPIO16
         options: [GPIO1, GPIO2, GPIO4, GPIO5, GPIO6, GPIO7, GPIO8, GPIO9, GPIO10, GPIO11, GPIO12, GPIO13, GPIO14, GPIO15, GPIO16, GPIO17, GPIO18, GPIO21, GPIO38, GPIO39, GPIO40, GPIO41, GPIO42, GPIO47, GPIO48]
       bclk:
         description: "Chân BCLK của MAX98357"
         type: choice
-        default: GPIO9
+        default: GPIO15
         options: [GPIO1, GPIO2, GPIO4, GPIO5, GPIO6, GPIO7, GPIO8, GPIO9, GPIO10, GPIO11, GPIO12, GPIO13, GPIO14, GPIO15, GPIO16, GPIO17, GPIO18, GPIO21, GPIO38, GPIO39, GPIO40, GPIO41, GPIO42, GPIO47, GPIO48]
       dout:
         description: "Chân DIN của MAX98357"
@@ -45,7 +45,7 @@ jobs:
       - name: Kiểm tra chân GPIO
         id: pins
         run: |
-          L="${{ inputs.lrclk || 'GPIO11' }}"; B="${{ inputs.bclk || 'GPIO9' }}"; D="${{ inputs.dout || 'GPIO7' }}"
+          L="${{ inputs.lrclk || 'GPIO16' }}"; B="${{ inputs.bclk || 'GPIO15' }}"; D="${{ inputs.dout || 'GPIO7' }}"
           if [ "$L" = "$B" ] || [ "$L" = "$D" ] || [ "$B" = "$D" ]; then
             echo "::error::Ba chân LRC/BCLK/DIN phải khác nhau (đang chọn $L, $B, $D)"; exit 1
           fi

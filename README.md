@@ -9,7 +9,7 @@ Loa thông báo và nghe nhạc (YouTube qua TriTue/Music Assistant, Zing, radio
 1. Tạo repo mới trên GitHub, ví dụ `loa-esp`, để chế độ **Public**. GitHub Pages miễn phí cần repo public.
 2. Tải toàn bộ các file trong thư mục này lên repo bằng nút **Add file → Upload files**. Giữ nguyên cấu trúc thư mục `.github/workflows` và `pages`.
 3. Vào **Settings → Actions → General → Workflow permissions**, chọn **Read and write permissions**, rồi Save.
-4. Tab **Actions** sẽ tự build bản chân mặc định (LRC 11, BCLK 9, DIN 7). Chờ khoảng 5–10 phút cho có dấu ✓ xanh.
+4. Tab **Actions** sẽ tự build bản chân mặc định (LRC 16, BCLK 15, DIN 7). Chờ khoảng 5–10 phút cho có dấu ✓ xanh.
 5. Vào **Settings → Pages**, mục Source chọn **Deploy from a branch**, Branch chọn **gh-pages / (root)**, rồi Save.
 6. Trang nạp sẽ ở `https://<tên-github>.github.io/loa-esp/`.
 

@@ -12,8 +12,8 @@
 substitutions:
   name: loa-esp
   friendly_name: Loa ESP
-  pin_lrclk: GPIO11      # MAX98357 LRC
-  pin_bclk: GPIO9        # MAX98357 BCLK
+  pin_lrclk: GPIO16      # MAX98357 LRC
+  pin_bclk: GPIO15       # MAX98357 BCLK
   pin_dout: GPIO7        # MAX98357 DIN
   ap_password: "12345678"
 
