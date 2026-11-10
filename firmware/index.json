@@ -1,13 +1,5 @@
 [
   {
-    "variant": "lrc11-bclk9-din7",
-    "lrclk": "GPIO11",
-    "bclk": "GPIO9",
-    "dout": "GPIO7",
-    "esphome": "2026.10.2",
-    "built": "2026-11-10T02:02Z"
-  },
-  {
     "variant": "lrc16-bclk15-din7",
     "lrclk": "GPIO16",
     "bclk": "GPIO15",
