@@ -1,0 +1,120 @@
+name: Build firmware loa ESP
+
+# Chạy tay: Actions -> "Build firmware loa ESP" -> Run workflow -> chọn chân GPIO -> Run.
+# Đẩy code lên nhánh main: build bản chân mặc định (LRC 11, BCLK 9, DIN 7).
+# Kết quả: trang nạp firmware ở https://<tên-github>.github.io/<tên-repo>/
+on:
+  push:
+    branches: [main]
+    paths: ["loa-esp-s3.yaml", "pages/**", ".github/workflows/build.yml"]
+  workflow_dispatch:
+    inputs:
+      lrclk:
+        description: "Chân LRC (WS) của MAX98357"
+        type: choice
+        default: GPIO11
+        options: [GPIO1, GPIO2, GPIO4, GPIO5, GPIO6, GPIO7, GPIO8, GPIO9, GPIO10, GPIO11, GPIO12, GPIO13, GPIO14, GPIO15, GPIO16, GPIO17, GPIO18, GPIO21, GPIO38, GPIO39, GPIO40, GPIO41, GPIO42, GPIO47, GPIO48]
+      bclk:
+        description: "Chân BCLK của MAX98357"
+        type: choice
+        default: GPIO9
+        options: [GPIO1, GPIO2, GPIO4, GPIO5, GPIO6, GPIO7, GPIO8, GPIO9, GPIO10, GPIO11, GPIO12, GPIO13, GPIO14, GPIO15, GPIO16, GPIO17, GPIO18, GPIO21, GPIO38, GPIO39, GPIO40, GPIO41, GPIO42, GPIO47, GPIO48]
+      dout:
+        description: "Chân DIN của MAX98357"
+        type: choice
+        default: GPIO7
+        options: [GPIO1, GPIO2, GPIO4, GPIO5, GPIO6, GPIO7, GPIO8, GPIO9, GPIO10, GPIO11, GPIO12, GPIO13, GPIO14, GPIO15, GPIO16, GPIO17, GPIO18, GPIO21, GPIO38, GPIO39, GPIO40, GPIO41, GPIO42, GPIO47, GPIO48]
+      esphome_version:
+        description: "Phiên bản ESPHome (latest = mới nhất)"
+        type: string
+        default: latest
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-firmware
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Kiểm tra chân GPIO
+        id: pins
+        run: |
+          L="${{ inputs.lrclk || 'GPIO11' }}"; B="${{ inputs.bclk || 'GPIO9' }}"; D="${{ inputs.dout || 'GPIO7' }}"
+          if [ "$L" = "$B" ] || [ "$L" = "$D" ] || [ "$B" = "$D" ]; then
+            echo "::error::Ba chân LRC/BCLK/DIN phải khác nhau (đang chọn $L, $B, $D)"; exit 1
+          fi
+          V="lrc${L#GPIO}-bclk${B#GPIO}-din${D#GPIO}"
+          { echo "lrclk=$L"; echo "bclk=$B"; echo "dout=$D"; echo "variant=$V"; } >> "$GITHUB_OUTPUT"
+          echo "Build biến thể $V"
+
+      - name: Build ESPHome
+        id: esphome
+        uses: esphome/build-action@v8.1.0
+        with:
+          yaml-file: loa-esp-s3.yaml
+          version: ${{ inputs.esphome_version || 'latest' }}
+          complete-manifest: true
+          release-summary: "LRC ${{ steps.pins.outputs.lrclk }}, BCLK ${{ steps.pins.outputs.bclk }}, DIN ${{ steps.pins.outputs.dout }}"
+          substitutions: |
+            pin_lrclk=${{ steps.pins.outputs.lrclk }}
+            pin_bclk=${{ steps.pins.outputs.bclk }}
+            pin_dout=${{ steps.pins.outputs.dout }}
+
+      - name: Lưu firmware (tải về từ trang Actions)
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ steps.pins.outputs.variant }}
+          path: ${{ steps.esphome.outputs.name }}
+
+      - name: Đưa firmware lên trang nạp (nhánh gh-pages)
+        env:
+          V: ${{ steps.pins.outputs.variant }}
+          OUT: ${{ steps.esphome.outputs.name }}
+          L: ${{ steps.pins.outputs.lrclk }}
+          B: ${{ steps.pins.outputs.bclk }}
+          D: ${{ steps.pins.outputs.dout }}
+          EV: ${{ steps.esphome.outputs.version }}
+        run: |
+          set -e
+          git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
+          rm -rf /tmp/site && mkdir -p /tmp/site
+          if git ls-remote --exit-code origin gh-pages >/dev/null 2>&1; then
+            git fetch origin gh-pages && git worktree add /tmp/site origin/gh-pages && (cd /tmp/site && git checkout -B gh-pages)
+          else
+            git worktree add --detach /tmp/site && (cd /tmp/site && git checkout --orphan gh-pages && git rm -rfq . )
+          fi
+          mkdir -p "/tmp/site/firmware/$V"
+          rm -rf "/tmp/site/firmware/$V"/*
+          cp -r "$OUT"/. "/tmp/site/firmware/$V/"
+          # Đường dẫn trong manifest phải tương đối với thư mục của manifest
+          python3 - "$V" <<'PY'
+          import json, os, sys
+          v = sys.argv[1]
+          p = f"/tmp/site/firmware/{v}/manifest.json"
+          m = json.load(open(p))
+          for b in m.get("builds", []):
+              for part in b.get("parts", []):
+                  part["path"] = os.path.basename(part["path"])
+              if "ota" in b and "path" in b["ota"]:
+                  b["ota"]["path"] = os.path.basename(b["ota"]["path"])
+          json.dump(m, open(p, "w"), indent=2)
+          PY
+          printf '{"variant":"%s","lrclk":"%s","bclk":"%s","dout":"%s","esphome":"%s","built":"%s"}\n' \
+            "$V" "$L" "$B" "$D" "$EV" "$(date -u +%Y-%m-%dT%H:%MZ)" > "/tmp/site/firmware/$V/info.json"
+          # Danh sách biến thể cho trang web
+          python3 - <<'PY'
+          import json, glob
+          items = [json.load(open(f)) for f in sorted(glob.glob("/tmp/site/firmware/*/info.json"))]
+          json.dump(items, open("/tmp/site/firmware/index.json", "w"), indent=2, ensure_ascii=False)
+          PY
+          cp pages/index.html /tmp/site/index.html
+          touch /tmp/site/.nojekyll
+          cd /tmp/site && git add -A && git commit -qm "Firmware $V (ESPHome $EV)" && git push -q origin gh-pages
+          echo "### Xong: biến thể **$V** (ESPHome $EV)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Trang nạp: https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/" >> "$GITHUB_STEP_SUMMARY"

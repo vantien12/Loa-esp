@@ -1,0 +1,185 @@
+# Loa thông báo + nghe nhạc cho Home Assistant / Music Assistant / TriTue YouTube Player
+# Phần cứng: ESP32-S3 N16R8 (16MB flash, 8MB PSRAM octal) + MAX98357
+#
+# Chân I2S đặt ở mục substitutions ngay dưới. Build bằng GitHub Actions thì chọn chân trên web GitHub,
+# workflow tự truyền vào đây, không cần sửa file.
+# Wi-Fi KHÔNG ghi trong firmware: lần đầu (hoặc khi mất Wi-Fi hơn 1 phút) loa tự phát Wi-Fi
+# "Loa-ESP-xxxxxx" (mật khẩu 12345678). Kết nối vào đó, trang cấu hình tự mở: chọn Wi-Fi nhà, nhập mật khẩu.
+# Cũng cấu hình được Wi-Fi qua cáp USB ngay trên trang nạp firmware (Improv).
+#
+# MAX98357: VIN -> 5V | GND -> GND | SD để trống | GAIN để trống = 9 dB (xem ghi chú cuối file)
+
+substitutions:
+  name: loa-esp
+  friendly_name: Loa ESP
+  pin_lrclk: GPIO11      # MAX98357 LRC
+  pin_bclk: GPIO9        # MAX98357 BCLK
+  pin_dout: GPIO7        # MAX98357 DIN
+  ap_password: "12345678"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  name_add_mac_suffix: true   # nhiều loa cùng firmware không trùng tên (loa-esp-a1b2c3)
+  min_version: 2026.9.0
+  project:
+    name: tx3.loa-esp-s3
+    version: "2.0"
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  cpu_frequency: 240MHz
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+      CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB: "y"
+      # Chạy code từ PSRAM: âm thanh không bị khựng khi ESP đang ghi flash (lưu âm lượng, OTA)
+      CONFIG_SPIRAM_RODATA: "y"
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"
+      CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"
+
+psram:
+  mode: octal
+  speed: 80MHz
+  ignore_not_found: false   # N16R8 chắc chắn có PSRAM: cho phép Wi-Fi dùng bộ đệm lớn hơn
+
+logger:
+
+api:
+
+ota:
+  - platform: esphome
+
+wifi:
+  # Không ghi SSID: cấu hình qua trang captive portal hoặc Improv, lưu vào flash, mất điện không mất
+  power_save_mode: none     # tắt tiết kiệm điện Wi-Fi để nhạc không giật
+  ap:
+    password: ${ap_password}
+    ap_timeout: 1min        # mất Wi-Fi nhà quá 1 phút: phát Wi-Fi cấu hình, vẫn tự thử kết nối lại
+
+captive_portal:             # trang chọn Wi-Fi khi kết nối vào Wi-Fi của loa
+
+improv_serial:              # cấu hình Wi-Fi qua cáp USB từ trang nạp firmware
+
+web_server:                 # http://loa-esp-xxxxxx.local : xem trạng thái, khởi động lại, xoá Wi-Fi
+  port: 80
+  version: 3
+
+button:
+  - platform: restart
+    name: Khởi động lại
+  - platform: factory_reset
+    name: Xoá cấu hình Wi-Fi (về mặc định)
+    entity_category: config
+
+sensor:
+  - platform: wifi_signal
+    name: Sóng Wi-Fi
+    update_interval: 60s
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: Địa chỉ IP
+    ssid:
+      name: Wi-Fi đang kết nối
+
+i2s_audio:
+  - id: i2s_out
+    i2s_lrclk_pin: ${pin_lrclk}
+    i2s_bclk_pin: ${pin_bclk}
+
+speaker:
+  # Loa thật: MAX98357, 1 kênh, khung I2S 32-bit (MAX98357 nhận 16/24/32-bit)
+  - platform: i2s_audio
+    id: i2s_speaker
+    i2s_audio_id: i2s_out
+    dac_type: external
+    i2s_dout_pin: ${pin_dout}
+    sample_rate: 48000
+    bits_per_sample: 32bit
+    channel: mono
+    timeout: never          # I2S chạy liên tục -> không có tiếng bụp khi bắt đầu/dừng phát
+    buffer_duration: 100ms
+
+  # Trộn 2 luồng: thông báo + nhạc (thông báo phát đè, nhạc tự nhỏ lại)
+  - platform: mixer
+    id: mixer_speaker
+    output_speaker: i2s_speaker
+    num_channels: 1
+    task_stack_in_psram: true
+    source_speakers:
+      - id: announcement_input
+        timeout: never
+      - id: media_input
+        timeout: never
+
+  # Đưa cả 2 luồng về 48 kHz / 32-bit: âm lượng phần mềm tính ở 32-bit, không mất chi tiết khi vặn nhỏ
+  - platform: resampler
+    id: announcement_resampler
+    output_speaker: announcement_input
+    sample_rate: 48000
+    bits_per_sample: 32
+  - platform: resampler
+    id: media_resampler
+    output_speaker: media_input
+    sample_rate: 48000
+    bits_per_sample: 32
+
+media_source:
+  - platform: audio_http
+    id: http_media_source
+    buffer_size: 500000     # ~500KB đệm nhạc trong PSRAM: Wi-Fi chập chờn vẫn mượt
+  - platform: audio_http
+    id: http_announcement_source
+    buffer_size: 250000
+
+media_player:
+  - platform: speaker_source
+    id: loa
+    name: None
+    volume_initial: 0.5
+    volume_increment: 0.05
+    volume_max: 0.9         # chặn trên để MAX98357 không vỡ tiếng khi mở hết cỡ
+    # announcement_volume: 0.7   # bỏ dấu # nếu muốn thông báo luôn ở mức âm lượng cố định
+    announcement_pipeline:
+      speaker: announcement_resampler
+      format: FLAC          # FLAC: không nén mất dữ liệu, ESP giải mã nhẹ nhất. KHÔNG dùng MP3
+      num_channels: 1
+      sample_rate: 48000
+      sources:
+        - http_announcement_source
+    media_pipeline:
+      speaker: media_resampler
+      format: FLAC
+      num_channels: 1
+      sample_rate: 48000
+      sources:
+        - http_media_source
+    # Có thông báo (TTS, chuông cửa...): nhạc nhỏ 20 dB, đọc xong nhạc to lại trong 1 giây
+    on_announcement:
+      - mixer_speaker.apply_ducking:
+          id: media_input
+          decibel_reduction: 20
+          duration: 0.0s
+    on_state:
+      - if:
+          condition:
+            not:
+              media_player.is_announcing: loa
+          then:
+            - mixer_speaker.apply_ducking:
+                id: media_input
+                decibel_reduction: 0
+                duration: 1.0s
+
+# ---------------- GHI CHÚ PHẦN CỨNG (ảnh hưởng tiếng nhiều hơn phần mềm) ----------------
+# GAIN của MAX98357: để trống = 9 dB | nối GND = 12 dB | nối VIN = 6 dB
+#   Loa nhỏ/tiếng xì khi im lặng: hạ gain (6 dB) rồi tăng volume_max lên 1.0.
+# Nguồn: 5V >= 2A, tụ 470-1000 µF sát chân VIN-GND của MAX98357, dây I2S ngắn (< 15 cm).
+# Loa: 4 Ω 3-5 W loại toàn dải, đặt trong hộp kín: thay đổi lớn nhất về độ hay.

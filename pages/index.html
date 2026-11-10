@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nạp firmware Loa ESP</title>
+<script type="module" src="https://unpkg.com/esp-web-tools@10.2.1/dist/web/install-button.js?module"></script>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --fg:#1d2330; --muted:#5d6676; --line:#dde1e8; --accent:#0b6bcb; --warn:#a15c00; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111418; --card:#1a1f26; --fg:#e7eaf0; --muted:#9aa3b2; --line:#2c333d; --accent:#5aa7ff; --warn:#f0b35a; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:1.6rem; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; margin:14px 0; }
+  label { font-weight:600; display:block; margin-bottom:6px; }
+  select { width:100%; padding:10px; font-size:1rem; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); }
+  .pins { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:14px 0; }
+  .pin { border:1px solid var(--line); border-radius:8px; padding:8px; text-align:center; }
+  .pin b { display:block; font-size:1.25rem; }
+  .pin span { color:var(--muted); font-size:.85rem; }
+  ol { padding-left:20px; margin:8px 0; } li { margin:6px 0; }
+  .warn { color:var(--warn); }
+  code { background:rgba(127,127,127,.15); padding:1px 5px; border-radius:4px; }
+  esp-web-install-button button[slot="activate"] { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:12px 20px; font-size:1rem; cursor:pointer; }
+  .muted { color:var(--muted); font-size:.9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Nạp firmware Loa ESP</h1>
+  <p class="sub">ESP32-S3 N16R8 + MAX98357 · loa thông báo và nghe nhạc cho Home Assistant</p>
+
+  <div class="card">
+    <label for="variant">1. Chọn bộ chân GPIO đã đấu</label>
+    <select id="variant"><option>Đang tải danh sách…</option></select>
+    <div class="pins" id="pins"></div>
+    <p class="muted" id="built"></p>
+    <p class="muted">Chưa có bộ chân bạn cần? Vào tab <b>Actions</b> của repo → <b>Build firmware loa ESP</b> → <b>Run workflow</b>, chọn chân rồi bấm Run. Khoảng 5–10 phút sau tải lại trang này.</p>
+  </div>
+
+  <div class="card">
+    <label>2. Cắm ESP vào máy tính rồi bấm nạp</label>
+    <esp-web-install-button id="install">
+      <button slot="activate">Nạp firmware</button>
+      <span slot="unsupported" class="warn">Trình duyệt này không nạp được. Dùng Chrome hoặc Edge trên máy tính.</span>
+      <span slot="not-allowed" class="warn">Trang phải mở bằng https.</span>
+    </esp-web-install-button>
+    <ol>
+      <li>Dùng cáp USB có truyền dữ liệu, cắm vào cổng <b>USB</b> của ESP32-S3 (cổng ghi "USB", không phải "COM") để cấu hình được Wi-Fi ngay sau khi nạp.</li>
+      <li>Không thấy cổng: giữ nút <b>BOOT</b>, bấm <b>RST</b>, rồi thả BOOT, thử lại.</li>
+      <li>Nạp xong, trang sẽ hỏi Wi-Fi: chọn Wi-Fi nhà, nhập mật khẩu là xong.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <label>3. Đổi Wi-Fi hoặc mất Wi-Fi</label>
+    <ol>
+      <li>Không vào được Wi-Fi nhà hơn 1 phút, loa tự phát Wi-Fi <code>loa-esp-xxxxxx</code>, mật khẩu <code>12345678</code>.</li>
+      <li>Kết nối điện thoại vào đó, trang cấu hình tự mở (nếu không, vào <code>192.168.4.1</code>). Chọn Wi-Fi mới, nhập mật khẩu.</li>
+      <li>Thông tin Wi-Fi lưu trong ESP, mất điện không mất. Wi-Fi nhà có lại thì loa tự kết nối lại.</li>
+    </ol>
+    <p class="muted">Sau đó Home Assistant tự phát hiện loa (Settings → Devices &amp; services → ESPHome → Configure).</p>
+  </div>
+</main>
+<script>
+  const sel = document.getElementById('variant');
+  const pinsEl = document.getElementById('pins');
+  const builtEl = document.getElementById('built');
+  const btn = document.getElementById('install');
+  let items = [];
+  function show(i) {
+    const it = items[i];
+    if (!it) return;
+    btn.manifest = `firmware/${it.variant}/manifest.json`;
+    pinsEl.innerHTML = [['LRC', it.lrclk], ['BCLK', it.bclk], ['DIN', it.dout]]
+      .map(([n, g]) => `<div class="pin"><b>${g}</b><span>MAX98357 ${n}</span></div>`).join('');
+    builtEl.textContent = `Build lúc ${it.built} · ESPHome ${it.esphome}`;
+  }
+  fetch('firmware/index.json', { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : [])
+    .then(list => {
+      items = list;
+      if (!items.length) { sel.innerHTML = '<option>Chưa có firmware: chạy workflow trong tab Actions</option>'; return; }
+      sel.innerHTML = items.map((it, i) =>
+        `<option value="${i}">LRC ${it.lrclk} · BCLK ${it.bclk} · DIN ${it.dout}</option>`).join('');
+      const def = items.findIndex(it => it.variant === 'lrc11-bclk9-din7');
+      sel.value = String(def >= 0 ? def : 0);
+      show(+sel.value);
+    })
+    .catch(() => { sel.innerHTML = '<option>Không tải được danh sách firmware</option>'; });
+  sel.addEventListener('change', () => show(+sel.value));
+</script>
+</body>
+</html>
