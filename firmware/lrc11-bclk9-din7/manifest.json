@@ -8,16 +8,16 @@
       "chipFamily": "ESP32-S3",
       "ota": {
         "path": "loa-esp-esp32s3.ota.bin",
-        "md5": "f2aaabd5afa52c7ffc803099bab8d6f7",
-        "sha256": "1073b5b54bd2b461cf64ff4e219dbf2c3ef0c877f909ee89daba3f2c9f05a4c0",
+        "md5": "dc80589a1de1bca35532e90d830a2cde",
+        "sha256": "238075abb41badc7f58e47c5dc24d67efce36452ffc5bbf3b91d2ba064bf5c43",
         "summary": "LRC GPIO11, BCLK GPIO9, DIN GPIO7"
       },
       "parts": [
         {
           "path": "loa-esp-esp32s3.factory.bin",
           "offset": 0,
-          "md5": "c1618947aaac5c0205f3c77e802516ad",
-          "sha256": "b8dee15873b3ed65194a601d2c3137cfbf597ae82e9f743a9ffab99814d80151"
+          "md5": "92c83a2981c95a5422ff6f470f13aa2c",
+          "sha256": "288e76a74f09d121892291528b708dad83d46276253daf37aceb4954c02f7eb6"
         }
       ]
     }
