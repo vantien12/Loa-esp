@@ -121,12 +121,12 @@ speaker:
     num_channels: 1
     sample_rate: 48000
     highpass_frequency: 50   # loa nhỏ không phát được dưới ~60 Hz: lọc bỏ cho đỡ rè, nghe to và sạch hơn
-    bass: 9
-    low_mid: 4
-    mid: 0
-    high_mid: 0
-    treble: 1
-    air: 1
+    bass: 5
+    low_mid: 1
+    mid: -1
+    high_mid: 1
+    treble: 3
+    air: 3
 
   # Trộn 2 luồng: thông báo + nhạc (thông báo phát đè, nhạc tự nhỏ lại)
   - platform: mixer
@@ -166,6 +166,8 @@ media_player:
     name: None
     volume_initial: 0.5
     volume_increment: 0.05
+    volume_min: 0.4         # ESPHome giảm âm lượng tuyến tính -49..0 dB: 50% = -24,5 dB (quá nhỏ, nghe mỏng).
+                            # 0.4 -> 50% = -14,7 dB, 70% = -8,8 dB, gần cách chỉnh âm lượng trên Pi. 0% vẫn tắt tiếng
     volume_max: 1.0         # EQ đã tự chừa khoảng trống chống vỡ tiếng nên mở được hết cỡ
     # announcement_volume: 0.7   # bỏ dấu # nếu muốn thông báo luôn ở mức âm lượng cố định
     announcement_pipeline:
@@ -221,9 +223,10 @@ select:
     entity_category: config
     optimistic: true
     restore_value: true
-    initial_option: Bass mạnh
+    initial_option: Rõ nét
     options:
       - Tự chỉnh
+      - Rõ nét
       - Bass mạnh
       - Cân bằng
       - Giọng nói
@@ -233,8 +236,9 @@ select:
     on_value:
       - lambda: |-
           // bass, low_mid, mid, high_mid, treble, air (dB) — giống mẫu của VBot, "Bass mạnh" chỉnh cho loa nhỏ
-          static const float P[7][6] = {
+          static const float P[8][6] = {
             {0, 0, 0, 0, 0, 0},     // Tự chỉnh: giữ nguyên các thanh
+            {5, 1, -1, 1, 3, 3},    // Rõ nét: bass vừa, sáng tiếng, ít bị hạ mức (-3,3 dB)
             {9, 4, 0, 0, 1, 1},     // Bass mạnh (cho loa nhỏ: +5..6 dB vùng 50-250 Hz)
             {0, 0, 0, 0, 0, 0},     // Cân bằng
             {-2, -1, 0, 2, 2, 0},   // Giọng nói
@@ -242,7 +246,7 @@ select:
             {4, 2, -1, 1, 3, 2},    // Sôi động
             {-3, -2, 0, 2, 1, -2},  // Ban đêm
           };
-          if (i == 0 || i >= 7) return;
+          if (i == 0 || i >= 8) return;
           id(eq_bass).make_call().set_value(P[i][0]).perform();
           id(eq_low_mid).make_call().set_value(P[i][1]).perform();
           id(eq_mid).make_call().set_value(P[i][2]).perform();
@@ -263,7 +267,7 @@ number:
     mode: slider
     optimistic: true
     restore_value: true
-    initial_value: 9
+    initial_value: 5
     on_value:
       - lambda: id(eq_out).set_band_gain(0, x);
   - platform: template
@@ -278,7 +282,7 @@ number:
     mode: slider
     optimistic: true
     restore_value: true
-    initial_value: 4
+    initial_value: 1
     on_value:
       - lambda: id(eq_out).set_band_gain(1, x);
   - platform: template
@@ -293,7 +297,7 @@ number:
     mode: slider
     optimistic: true
     restore_value: true
-    initial_value: 0
+    initial_value: -1
     on_value:
       - lambda: id(eq_out).set_band_gain(2, x);
   - platform: template
@@ -308,7 +312,7 @@ number:
     mode: slider
     optimistic: true
     restore_value: true
-    initial_value: 0
+    initial_value: 1
     on_value:
       - lambda: id(eq_out).set_band_gain(3, x);
   - platform: template
@@ -323,7 +327,7 @@ number:
     mode: slider
     optimistic: true
     restore_value: true
-    initial_value: 1
+    initial_value: 3
     on_value:
       - lambda: id(eq_out).set_band_gain(4, x);
   - platform: template
@@ -338,7 +342,7 @@ number:
     mode: slider
     optimistic: true
     restore_value: true
-    initial_value: 1
+    initial_value: 3
     on_value:
       - lambda: id(eq_out).set_band_gain(5, x);
   - platform: template
