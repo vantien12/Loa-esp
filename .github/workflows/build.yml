@@ -92,6 +92,7 @@ jobs:
           mkdir -p "/tmp/site/firmware/$V"
           rm -rf "/tmp/site/firmware/$V"/*
           cp -r "$OUT"/. "/tmp/site/firmware/$V/"
+          rm -f "/tmp/site/firmware/$V"/*.elf   # file gỡ lỗi 20MB, trang nạp không cần
           # Đường dẫn trong manifest phải tương đối với thư mục của manifest
           python3 - "$V" <<'PY'
           import json, os, sys
