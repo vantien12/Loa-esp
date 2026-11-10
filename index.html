@@ -85,7 +85,7 @@
       if (!items.length) { sel.innerHTML = '<option>Chưa có firmware: chạy workflow trong tab Actions</option>'; return; }
       sel.innerHTML = items.map((it, i) =>
         `<option value="${i}">LRC ${it.lrclk} · BCLK ${it.bclk} · DIN ${it.dout}</option>`).join('');
-      const def = items.findIndex(it => it.variant === 'lrc11-bclk9-din7');
+      const def = items.findIndex(it => it.variant === 'lrc16-bclk15-din7');
       sel.value = String(def >= 0 ? def : 0);
       show(+sel.value);
     })
