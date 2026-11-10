@@ -1,0 +1,25 @@
+{
+  "name": "tx3.loa-esp-s3",
+  "version": "2.0",
+  "home_assistant_domain": "esphome",
+  "new_install_prompt_erase": false,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "ota": {
+        "path": "loa-esp-esp32s3.ota.bin",
+        "md5": "3be2d8d842e8d69e8e5144b0a2ea076b",
+        "sha256": "0a3b96d235cc3ab438eccc120cf6bcf6364cf209d6a0c01d931a64ddb19de3f6",
+        "summary": "LRC GPIO16, BCLK GPIO15, DIN GPIO7"
+      },
+      "parts": [
+        {
+          "path": "loa-esp-esp32s3.factory.bin",
+          "offset": 0,
+          "md5": "04d23eb4f78e1576194b209906a78547",
+          "sha256": "af370ee558bbba9dd65892eccc81316939bbbaf3689691ce9cba3d7579524bc2"
+        }
+      ]
+    }
+  ]
+}
