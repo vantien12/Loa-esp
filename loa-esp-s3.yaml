@@ -140,17 +140,19 @@ speaker:
       - id: media_input
         timeout: never
 
-  # Đưa cả 2 luồng về 48 kHz / 32-bit: âm lượng phần mềm tính ở 32-bit, không mất chi tiết khi vặn nhỏ
+  # Resampler để 16-bit giống loa Voice PE: HA đã gửi sẵn 48 kHz/16-bit nên resampler chỉ chuyển thẳng.
+  # (Nếu đặt 32-bit, resampler phải đổi số bit và luôn tự hạ -3 dB.) Mixer đổi sang 32-bit không hạ mức,
+  # âm lượng phần mềm vẫn tính ở 32-bit trong loa I2S.
   - platform: resampler
     id: announcement_resampler
     output_speaker: announcement_input
     sample_rate: 48000
-    bits_per_sample: 32
+    bits_per_sample: 16
   - platform: resampler
     id: media_resampler
     output_speaker: media_input
     sample_rate: 48000
-    bits_per_sample: 32
+    bits_per_sample: 16
 
 media_source:
   - platform: audio_http
