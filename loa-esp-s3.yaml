@@ -43,6 +43,11 @@ esp32:
       CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"
       CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"
 
+external_components:
+  - source:
+      type: local
+      path: components     # khối EQ 6 dải (components/eq_speaker), giống EQ của VBot
+
 psram:
   mode: octal
   speed: 80MHz
@@ -107,10 +112,26 @@ speaker:
     timeout: never          # I2S chạy liên tục -> không có tiếng bụp khi bắt đầu/dừng phát
     buffer_duration: 100ms
 
+  # EQ 6 dải (100/250/630/1600/4000/10000 Hz) + lọc bỏ âm quá trầm, chỉnh trực tiếp trong Home Assistant.
+  # Tự chừa khoảng trống theo mức tăng để không vỡ tiếng.
+  - platform: eq_speaker
+    id: eq_out
+    output_speaker: i2s_speaker
+    bits_per_sample: 32
+    num_channels: 1
+    sample_rate: 48000
+    highpass_frequency: 50   # loa nhỏ không phát được dưới ~60 Hz: lọc bỏ cho đỡ rè, nghe to và sạch hơn
+    bass: 9
+    low_mid: 4
+    mid: 0
+    high_mid: 0
+    treble: 1
+    air: 1
+
   # Trộn 2 luồng: thông báo + nhạc (thông báo phát đè, nhạc tự nhỏ lại)
   - platform: mixer
     id: mixer_out
-    output_speaker: i2s_speaker
+    output_speaker: eq_out
     num_channels: 1
     task_stack_in_psram: true
     source_speakers:
@@ -145,7 +166,7 @@ media_player:
     name: None
     volume_initial: 0.5
     volume_increment: 0.05
-    volume_max: 0.9         # chặn trên để MAX98357 không vỡ tiếng khi mở hết cỡ
+    volume_max: 1.0         # EQ đã tự chừa khoảng trống chống vỡ tiếng nên mở được hết cỡ
     # announcement_volume: 0.7   # bỏ dấu # nếu muốn thông báo luôn ở mức âm lượng cố định
     announcement_pipeline:
       speaker: announcement_resampler
@@ -177,6 +198,179 @@ media_player:
                 id: media_input
                 decibel_reduction: 0
                 duration: 1.0s
+
+# ---------------- EQ: chỉnh trong Home Assistant (Thiết bị -> Loa ESP -> Cấu hình) ----------------
+switch:
+  - platform: template
+    id: eq_switch
+    name: EQ bật
+    icon: mdi:equalizer
+    entity_category: config
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    turn_on_action:
+      - lambda: id(eq_out).set_enabled(true);
+    turn_off_action:
+      - lambda: id(eq_out).set_enabled(false);
+
+select:
+  - platform: template
+    id: eq_preset
+    name: EQ mẫu
+    icon: mdi:tune-vertical
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    initial_option: Bass mạnh
+    options:
+      - Tự chỉnh
+      - Bass mạnh
+      - Cân bằng
+      - Giọng nói
+      - Ấm áp
+      - Sôi động
+      - Ban đêm
+    on_value:
+      - lambda: |-
+          // bass, low_mid, mid, high_mid, treble, air (dB) — giống mẫu của VBot, "Bass mạnh" chỉnh cho loa nhỏ
+          static const float P[7][6] = {
+            {0, 0, 0, 0, 0, 0},     // Tự chỉnh: giữ nguyên các thanh
+            {9, 4, 0, 0, 1, 1},     // Bass mạnh (cho loa nhỏ: +5..6 dB vùng 50-250 Hz)
+            {0, 0, 0, 0, 0, 0},     // Cân bằng
+            {-2, -1, 0, 2, 2, 0},   // Giọng nói
+            {3, 2, 0, -1, -2, -1},  // Ấm áp
+            {4, 2, -1, 1, 3, 2},    // Sôi động
+            {-3, -2, 0, 2, 1, -2},  // Ban đêm
+          };
+          if (i == 0 || i >= 7) return;
+          id(eq_bass).make_call().set_value(P[i][0]).perform();
+          id(eq_low_mid).make_call().set_value(P[i][1]).perform();
+          id(eq_mid).make_call().set_value(P[i][2]).perform();
+          id(eq_high_mid).make_call().set_value(P[i][3]).perform();
+          id(eq_treble).make_call().set_value(P[i][4]).perform();
+          id(eq_air).make_call().set_value(P[i][5]).perform();
+
+number:
+  - platform: template
+    id: eq_bass
+    name: EQ 100Hz Bass
+    icon: mdi:speaker
+    entity_category: config
+    unit_of_measurement: dB
+    min_value: -12
+    max_value: 12
+    step: 0.5
+    mode: slider
+    optimistic: true
+    restore_value: true
+    initial_value: 9
+    on_value:
+      - lambda: id(eq_out).set_band_gain(0, x);
+  - platform: template
+    id: eq_low_mid
+    name: EQ 250Hz
+    icon: mdi:sine-wave
+    entity_category: config
+    unit_of_measurement: dB
+    min_value: -12
+    max_value: 12
+    step: 0.5
+    mode: slider
+    optimistic: true
+    restore_value: true
+    initial_value: 4
+    on_value:
+      - lambda: id(eq_out).set_band_gain(1, x);
+  - platform: template
+    id: eq_mid
+    name: EQ 630Hz
+    icon: mdi:sine-wave
+    entity_category: config
+    unit_of_measurement: dB
+    min_value: -12
+    max_value: 12
+    step: 0.5
+    mode: slider
+    optimistic: true
+    restore_value: true
+    initial_value: 0
+    on_value:
+      - lambda: id(eq_out).set_band_gain(2, x);
+  - platform: template
+    id: eq_high_mid
+    name: EQ 1600Hz
+    icon: mdi:sine-wave
+    entity_category: config
+    unit_of_measurement: dB
+    min_value: -12
+    max_value: 12
+    step: 0.5
+    mode: slider
+    optimistic: true
+    restore_value: true
+    initial_value: 0
+    on_value:
+      - lambda: id(eq_out).set_band_gain(3, x);
+  - platform: template
+    id: eq_treble
+    name: EQ 4000Hz Treble
+    icon: mdi:sine-wave
+    entity_category: config
+    unit_of_measurement: dB
+    min_value: -12
+    max_value: 12
+    step: 0.5
+    mode: slider
+    optimistic: true
+    restore_value: true
+    initial_value: 1
+    on_value:
+      - lambda: id(eq_out).set_band_gain(4, x);
+  - platform: template
+    id: eq_air
+    name: EQ 10kHz
+    icon: mdi:sine-wave
+    entity_category: config
+    unit_of_measurement: dB
+    min_value: -12
+    max_value: 12
+    step: 0.5
+    mode: slider
+    optimistic: true
+    restore_value: true
+    initial_value: 1
+    on_value:
+      - lambda: id(eq_out).set_band_gain(5, x);
+  - platform: template
+    id: eq_preamp
+    name: EQ Preamp
+    icon: mdi:volume-plus
+    entity_category: config
+    unit_of_measurement: dB
+    min_value: -12
+    max_value: 6
+    step: 0.5
+    mode: slider
+    optimistic: true
+    restore_value: true
+    initial_value: 0
+    on_value:
+      - lambda: id(eq_out).set_preamp(x);
+  - platform: template
+    id: eq_highpass
+    name: Lọc âm quá trầm
+    icon: mdi:filter
+    entity_category: config
+    unit_of_measurement: Hz
+    min_value: 0
+    max_value: 200
+    step: 10
+    mode: slider
+    optimistic: true
+    restore_value: true
+    initial_value: 50
+    on_value:
+      - lambda: id(eq_out).set_highpass_frequency(x);
 
 # ---------------- GHI CHÚ PHẦN CỨNG (ảnh hưởng tiếng nhiều hơn phần mềm) ----------------
 # GAIN của MAX98357: để trống = 9 dB | nối GND = 12 dB | nối VIN = 6 dB
